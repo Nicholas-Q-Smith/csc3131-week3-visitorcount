@@ -1,0 +1,34 @@
+# LOCAL DEVELOPMENT ONLY. On Azure the database is a PostgreSQL flexible server
+# with TLS on; here it's a plain container, so the app runs with PGSSL=disable.
+services:
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: visits
+      PGUSER: visits
+      PGPASSWORD: localdev-only
+      PGSSL: disable
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine   # same major version as the Azure server
+    environment:
+      POSTGRES_DB: visits
+      POSTGRES_USER: visits
+      POSTGRES_PASSWORD: localdev-only
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U visits -d visits"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  pgdata:

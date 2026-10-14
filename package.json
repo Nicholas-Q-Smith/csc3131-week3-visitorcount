@@ -1,0 +1,19 @@
+{
+  "name": "csc3131-visits",
+  "version": "1.0.0",
+  "description": "CSC3131 Week 03 visit counter: a teaching app that diagnoses Azure App Service + PostgreSQL setup",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "express": "^5.3.0",
+    "pg": "^8.23.1"
+  }
+}
