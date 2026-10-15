@@ -9,9 +9,20 @@ Its main job is to make it obvious whether a student's setup is right and, if no
 - **`/`**: a visit counter (one row per page load), a **setup checklist** with a ✓ or ✗ for each
   setting and for "Database reachable and signed in", and a panel showing what the request looked
   like (container hostname, the address that connected, `X-Forwarded-For`, `X-Forwarded-Proto`, `Host`).
-  Returns **200** when everything works and **503** when the database check fails. The page still renders.
-- **`/api`**: the same information as JSON (no secrets), with the same 200/503 status.
+- **Notes** on `/`: a form (`POST /notes`, then a redirect back to `/`) that saves short notes, to
+  demonstrate persistence. When the database works, notes go into a `notes` table and the list says
+  *Saved in the database: survives restarts*. When it doesn't, notes are kept in the container's
+  memory (the latest 20) under an amber *Saved in this container only: lost when it restarts*.
+  Memory notes are never copied into the database later.
+  - Notes are at most 80 characters and are always shown as plain text.
+  - Each container accepts at most one note per second.
+- **`/api`**: the same information as JSON (no secrets), including `databaseOk`, `notesStore`
+  (`database` or `memory`) and `noteCount`.
 - **`/health`**: always `200 ok` and never touches the database (a liveness check).
+
+`/` and `/api` return **200 whenever the page renders**, even with a red checklist. A 503 or other
+gateway error therefore always means the platform couldn't reach the app, never that the database is
+down. Scripts should check `databaseOk` in `/api` instead.
 
 The app never crashes over a missing, misconfigured or unreachable database. It retries on every
 request, so once a student fixes the server side (firewall, database created, server started), a
@@ -42,6 +53,8 @@ The classifier lives in [`diagnose.js`](diagnose.js), with a unit test for every
 | `ENOTFOUND` / `EAI_AGAIN` | PGHOST doesn't resolve. Check the spelling … |
 | `ECONNREFUSED` | Nothing is accepting connections at that address … |
 | Connect timeout (5 s) / `ETIMEDOUT` | The connection timed out. The database firewall is probably blocking Azure … |
+| Connected, but a query got no answer in 5 s | The database accepted the connection but didn't answer within 5 seconds … |
+| All 5 of the app's connections busy for 5 s | All of the app's database connections stayed busy … |
 | `28000` no pg_hba.conf entry | The database refused this address. Check the firewall rules and that TLS is on |
 | `28P01` | Wrong password for user … Check PGPASSWORD. |
 | `3D000` | The database … doesn't exist on this server … |
@@ -145,5 +158,7 @@ the package public once, as above.
   dev dependencies or tests in it. It is about 63 MB compressed.
 - Logs go to stdout and appear in App Service's **Log stream**. You get one line per request
   (`GET / 200 12ms`) plus a startup line listing which settings are present (names only, never values).
+- No request waits more than about 5 seconds on the database. The server cancels statements after
+  5 s (`statement_timeout`), and the app gives up on a silent connection after 6 s.
 - Every request to `/` adds a row, including App Service's "Always On" pings, which hit `/`.
   Point the App Service health check at `/health`.

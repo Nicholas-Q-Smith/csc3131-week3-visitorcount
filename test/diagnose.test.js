@@ -121,8 +121,24 @@ describe('classify', () => {
     assert.match(d.message, /Allow public access from any Azure service within Azure to this server/);
   });
 
-  test('pg-pool checkout timeout is also a timeout', () => {
-    assert.equal(classify(fakeError('timeout exceeded when trying to connect'), settings).kind, 'timeout');
+  test('pg-pool checkout timeout means the connections were busy, not the firewall', () => {
+    const d = classify(fakeError('timeout exceeded when trying to connect'), settings);
+    assert.equal(d.kind, 'pool-busy');
+    assert.doesNotMatch(d.message, /firewall/);
+  });
+
+  test('57014 statement timeout: connected but no answer', () => {
+    const d = classify(fakeError('canceling statement due to statement timeout', { code: '57014' }), settings);
+    assert.equal(d.kind, 'query-timeout');
+    assert.match(d.message, /didn't answer within 5 seconds/);
+  });
+
+  test('57014 for some other cancellation is unexpected', () => {
+    assert.equal(classify(fakeError('canceling statement due to user request', { code: '57014' }), settings).kind, 'unexpected');
+  });
+
+  test('pg query_timeout (server went silent) is a query timeout', () => {
+    assert.equal(classify(fakeError('Query read timeout'), settings).kind, 'query-timeout');
   });
 
   test('ETIMEDOUT is a timeout', () => {

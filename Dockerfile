@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
-COPY server.js diagnose.js ./
+COPY server.js diagnose.js notes.js ./
 
 # Baked in at build time: docker build --build-arg APP_VERSION=2 ...
 ARG APP_VERSION=1

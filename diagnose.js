@@ -106,8 +106,25 @@ function classify(err, settings = {}) {
         'Is the server name right, and is the server running (not stopped)?',
     };
   }
-  if (code === 'ETIMEDOUT' ||
-      /connection timeout|timeout exceeded when trying to connect/i.test(message)) {
+  // pg-pool's own message: this request queued for one of the app's connections
+  // and none came free in time. Not a firewall problem.
+  if (/timeout exceeded when trying to connect/i.test(message)) {
+    return {
+      kind: 'pool-busy',
+      message: "All of the app's database connections stayed busy for 5 seconds, so this request gave up. " +
+        'Refresh in a moment. If it keeps happening, the database is slow or not answering.',
+    };
+  }
+  // Connected, but a query got no answer: the server's statement_timeout
+  // (57014) or, if the server went silent altogether, pg's query_timeout.
+  if ((code === '57014' && /statement timeout/i.test(message)) || /query read timeout/i.test(message)) {
+    return {
+      kind: 'query-timeout',
+      message: "The database accepted the connection but didn't answer within 5 seconds. It may be restarting " +
+        '(Azure maintenance, or a server you have just started) or overloaded. Refresh in a minute.',
+    };
+  }
+  if (code === 'ETIMEDOUT' || /connection timeout/i.test(message)) {
     return {
       kind: 'timeout',
       message: "The connection timed out. The database firewall is probably blocking Azure: in the database's " +
